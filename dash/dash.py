@@ -836,7 +836,7 @@ class Dash:
             request_etag = quart.request.headers.get("If-None-Match")
 
             if '"{}"'.format(tag) == request_etag:
-                response = quart.Response(None, status=304)
+                response = quart.Response("", status=304)
 
         return response
 
@@ -1319,7 +1319,7 @@ class Dash:
 
         response = (
             quart.g.dash_response  # pylint: disable=assigning-non-slot
-        ) = quart.Response(None, mimetype="application/json")
+        ) = quart.Response("", mimetype="application/json")
 
         args = inputs_to_vals(inputs + state)
 
