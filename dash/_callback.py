@@ -1,4 +1,5 @@
 import collections
+import inspect
 from functools import wraps
 
 from .dependencies import (
@@ -139,7 +140,7 @@ def register_callback(
     # pylint: disable=too-many-locals
     def wrap_func(func):
         @wraps(func)
-        def add_context(*args, **kwargs):
+        async def add_context(*args, **kwargs):
             output_spec = kwargs.pop("outputs_list")
             _validate.validate_output_spec(insert_output, output_spec, Output)
 
@@ -148,7 +149,12 @@ def register_callback(
             )
 
             # don't touch the comment on the next line - used by debugger
-            output_value = func(*func_args, **func_kwargs)  # %% callback invoked %%
+            if inspect.iscoroutinefunction(func):
+                output_value = await func(
+                    *func_args, **func_kwargs
+                )  # %% callback invoked %%
+            else:
+                output_value = func(*func_args, **func_kwargs)  # %% callback invoked %%
 
             if isinstance(output_value, NoUpdate):
                 raise PreventUpdate

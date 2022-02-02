@@ -1,7 +1,7 @@
 import functools
 import warnings
 
-import flask
+import quart
 
 from . import exceptions
 
@@ -9,7 +9,7 @@ from . import exceptions
 def has_context(func):
     @functools.wraps(func)
     def assert_context(*args, **kwargs):
-        if not flask.has_request_context():
+        if not quart.has_request_context():
             raise exceptions.MissingCallbackContextException(
                 "dash.callback_context.{} is only available from a callback!".format(
                     getattr(func, "__name__")
@@ -38,12 +38,12 @@ class CallbackContext:
     @property
     @has_context
     def inputs(self):
-        return getattr(flask.g, "input_values", {})
+        return getattr(quart.g, "input_values", {})
 
     @property
     @has_context
     def states(self):
-        return getattr(flask.g, "state_values", {})
+        return getattr(quart.g, "state_values", {})
 
     @property
     @has_context
@@ -52,17 +52,17 @@ class CallbackContext:
         # value - to avoid breaking existing apps, add a dummy item but
         # make the list still look falsy. So `if ctx.triggered` will make it
         # look empty, but you can still do `triggered[0]["prop_id"].split(".")`
-        return getattr(flask.g, "triggered_inputs", []) or falsy_triggered
+        return getattr(quart.g, "triggered_inputs", []) or falsy_triggered
 
     @property
     @has_context
     def args_grouping(self):
-        return getattr(flask.g, "args_grouping", [])
+        return getattr(quart.g, "args_grouping", [])
 
     @property
     @has_context
     def outputs_grouping(self):
-        return getattr(flask.g, "outputs_grouping", [])
+        return getattr(quart.g, "outputs_grouping", [])
 
     @property
     @has_context
@@ -73,7 +73,7 @@ class CallbackContext:
                 DeprecationWarning,
             )
 
-        return getattr(flask.g, "outputs_list", [])
+        return getattr(quart.g, "outputs_list", [])
 
     @property
     @has_context
@@ -84,7 +84,7 @@ class CallbackContext:
                 DeprecationWarning,
             )
 
-        return getattr(flask.g, "inputs_list", [])
+        return getattr(quart.g, "inputs_list", [])
 
     @property
     @has_context
@@ -94,12 +94,12 @@ class CallbackContext:
                 "states_list is deprecated, use args_grouping instead",
                 DeprecationWarning,
             )
-        return getattr(flask.g, "states_list", [])
+        return getattr(quart.g, "states_list", [])
 
     @property
     @has_context
     def response(self):
-        return getattr(flask.g, "dash_response")
+        return getattr(quart.g, "dash_response")
 
     @staticmethod
     @has_context
@@ -116,14 +116,14 @@ class CallbackContext:
         :param description: A description of the resource.
         :type description: string or None
         """
-        timing_information = getattr(flask.g, "timing_information", {})
+        timing_information = getattr(quart.g, "timing_information", {})
 
         if name in timing_information:
             raise KeyError('Duplicate resource name "{}" found.'.format(name))
 
         timing_information[name] = {"dur": round(duration * 1000), "desc": description}
 
-        setattr(flask.g, "timing_information", timing_information)
+        setattr(quart.g, "timing_information", timing_information)
 
     @property
     @has_context
@@ -132,7 +132,7 @@ class CallbackContext:
         Return True if this callback is using dictionary or nested groupings for
         Input/State dependencies, or if Input and State dependencies are interleaved
         """
-        return getattr(flask.g, "using_args_grouping", [])
+        return getattr(quart.g, "using_args_grouping", [])
 
     @property
     @has_context
@@ -141,7 +141,7 @@ class CallbackContext:
         Return True if this callback is using dictionary or nested groupings for
         Output dependencies.
         """
-        return getattr(flask.g, "using_outputs_grouping", [])
+        return getattr(quart.g, "using_outputs_grouping", [])
 
 
 callback_context = CallbackContext()

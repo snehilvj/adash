@@ -1,3 +1,6 @@
+import asyncio
+import inspect
+import json
 import os
 import sys
 import collections
@@ -13,8 +16,10 @@ import hashlib
 import base64
 from urllib.parse import urlparse
 
-import flask
-from flask_compress import Compress
+import plotly.utils
+import quart
+from quart_compress import Compress
+from quart.utils import run_sync
 from werkzeug.debug.tbtools import get_current_traceback
 from pkg_resources import get_distribution, parse_version
 from dash import dcc
@@ -113,6 +118,15 @@ class _NoUpdate:
 no_update = _callback.NoUpdate()  # pylint: disable=protected-access
 
 
+# borrowed from dash-devices
+def exception_handler(loop, context):
+    if "future" in context:
+        task = context["future"]
+        exception = context["exception"]
+        # Route the exception through sys.excepthook
+        sys.excepthook(exception.__class__, exception, exception.__traceback__)
+
+
 # pylint: disable=too-many-instance-attributes
 # pylint: disable=too-many-arguments, too-many-locals
 class Dash:
@@ -134,7 +148,7 @@ class Dash:
         ``False``: The server will be added later via ``app.init_app(server)``
             where ``server`` is a ``flask.Flask`` instance.
         ``flask.Flask``: use this pre-existing Flask server.
-    :type server: boolean or flask.Flask
+    :type server: boolean or quart.Quart
 
     :param assets_folder: a path, relative to the current working directory,
         for extra files to be used in the browser. Default ``'assets'``.
@@ -295,35 +309,40 @@ class Dash:
 
         # We have 3 cases: server is either True (we create the server), False
         # (defer server creation) or a Flask app instance (we use their server)
-        if isinstance(server, flask.Flask):
+        if isinstance(server, quart.Quart):
             self.server = server
             if name is None:
                 name = getattr(server, "name", "__main__")
         elif isinstance(server, bool):
             name = name if name else "__main__"
-            self.server = flask.Flask(name) if server else None
+            self.server = quart.Quart(name) if server else None
         else:
             raise ValueError("server must be a Flask app or a boolean")
 
-        if (
-            self.server is not None
-            and not hasattr(self.server.config, "COMPRESS_ALGORITHM")
-            and _flask_compress_version >= parse_version("1.6.0")
-        ):
-            # flask-compress==1.6.0 changed default to ['br', 'gzip']
-            # and non-overridable default compression with Brotli is
-            # causing performance issues
-            self.server.config["COMPRESS_ALGORITHM"] = ["gzip"]
+        # if (
+        #     self.server is not None
+        #     and not hasattr(self.server.config, "COMPRESS_ALGORITHM")
+        #     and _flask_compress_version >= parse_version("1.6.0")
+        # ):
+        #     # flask-compress==1.6.0 changed default to ['br', 'gzip']
+        #     # and non-overridable default compression with Brotli is
+        #     # causing performance issues
+        #     self.server.config["COMPRESS_ALGORITHM"] = ["gzip"]
 
         base_prefix, routes_prefix, requests_prefix = pathname_configs(
             url_base_pathname, routes_pathname_prefix, requests_pathname_prefix
         )
 
+        # borrowed from flask.helpers.get_root_path
+        mod = sys.modules.get(name)
+        if mod is not None and hasattr(mod, "__file__"):
+            root_path = os.path.dirname(os.path.abspath(mod.__file__))
+        else:
+            root_path = os.getcwd()
+
         self.config = AttributeDict(
             name=name,
-            assets_folder=os.path.join(
-                flask.helpers.get_root_path(name), assets_folder
-            ),
+            assets_folder=os.path.join(root_path, assets_folder),
             assets_url_path=assets_url_path,
             assets_ignore=assets_ignore,
             assets_external_path=get_combined_config(
@@ -412,6 +431,9 @@ class Dash:
         self._long_callback_count = 0
         self._long_callback_manager = long_callback_manager
 
+        self.loop = asyncio.get_event_loop()
+        self.loop.set_exception_handler(exception_handler)
+
         self.logger = logging.getLogger(name)
         self.logger.addHandler(logging.StreamHandler(stream=sys.stdout))
 
@@ -447,7 +469,7 @@ class Dash:
         )
 
         self.server.register_blueprint(
-            flask.Blueprint(
+            quart.Blueprint(
                 assets_blueprint_name,
                 config.name,
                 static_folder=self.config.assets_folder,
@@ -560,12 +582,12 @@ class Dash:
         _validate.validate_index("index string", checks, value)
         self._index_string = value
 
-    def serve_layout(self):
+    async def serve_layout(self):
         layout = self._layout_value()
 
         # TODO - Set browser cache limit - pass hash into frontend
-        return flask.Response(
-            to_json(layout),
+        return quart.Response(
+            json.dumps(layout, cls=plotly.utils.PlotlyJSONEncoder),
             mimetype="application/json",
         )
 
@@ -599,7 +621,7 @@ class Dash:
 
         return config
 
-    def serve_reload_hash(self):
+    async def serve_reload_hash(self):
         _reload = self._hot_reload
         with _reload.lock:
             hard = _reload.hard
@@ -608,7 +630,7 @@ class Dash:
             _reload.hard = False
             _reload.changed_assets = []
 
-        return flask.jsonify(
+        return quart.jsonify(
             {
                 "reloadHash": _hash,
                 "hard": hard,
@@ -780,7 +802,7 @@ class Dash:
         return "\n      ".join(tags)
 
     # Serve the JS bundles for each package
-    def serve_component_suites(self, package_name, fingerprinted_path):
+    async def serve_component_suites(self, package_name, fingerprinted_path):
         path_in_pkg, has_fingerprint = check_fingerprint(fingerprinted_path)
 
         _validate.validate_js_path(self.registered_paths, package_name, path_in_pkg)
@@ -797,7 +819,7 @@ class Dash:
             package.__path__,
         )
 
-        response = flask.Response(
+        response = quart.Response(
             pkgutil.get_data(package_name, path_in_pkg), mimetype=mimetype
         )
 
@@ -808,17 +830,17 @@ class Dash:
         else:
             # Non-fingerprinted resources are given an ETag that
             # will be used / check on future requests
-            response.add_etag()
+            await response.add_etag()
             tag = response.get_etag()[0]
 
-            request_etag = flask.request.headers.get("If-None-Match")
+            request_etag = quart.request.headers.get("If-None-Match")
 
             if '"{}"'.format(tag) == request_etag:
-                response = flask.Response(None, status=304)
+                response = quart.Response(None, status=304)
 
         return response
 
-    def index(self, *args, **kwargs):  # pylint: disable=unused-argument
+    async def index(self, *args, **kwargs):  # pylint: disable=unused-argument
         scripts = self._generate_scripts_html()
         css = self._generate_css_dist_html()
         config = self._generate_config_html()
@@ -924,8 +946,8 @@ class Dash:
             app_entry=app_entry,
         )
 
-    def dependencies(self):
-        return flask.jsonify(self._callback_list)
+    async def dependencies(self):
+        return quart.jsonify(self._callback_list)
 
     def clientside_callback(self, clientside_function, *args, **kwargs):
         """Create a callback that updates the output by calling a clientside
@@ -1272,32 +1294,32 @@ class Dash:
 
         return wrapper
 
-    def dispatch(self):
-        body = flask.request.get_json()
-        flask.g.inputs_list = inputs = body.get(  # pylint: disable=assigning-non-slot
+    async def dispatch(self):
+        body = await quart.request.get_json()
+        quart.g.inputs_list = inputs = body.get(  # pylint: disable=assigning-non-slot
             "inputs", []
         )
-        flask.g.states_list = state = body.get(  # pylint: disable=assigning-non-slot
+        quart.g.states_list = state = body.get(  # pylint: disable=assigning-non-slot
             "state", []
         )
         output = body["output"]
         outputs_list = body.get("outputs") or split_callback_id(output)
-        flask.g.outputs_list = outputs_list  # pylint: disable=assigning-non-slot
+        quart.g.outputs_list = outputs_list  # pylint: disable=assigning-non-slot
 
-        flask.g.input_values = (  # pylint: disable=assigning-non-slot
+        quart.g.input_values = (  # pylint: disable=assigning-non-slot
             input_values
         ) = inputs_to_dict(inputs)
-        flask.g.state_values = inputs_to_dict(  # pylint: disable=assigning-non-slot
+        quart.g.state_values = inputs_to_dict(  # pylint: disable=assigning-non-slot
             state
         )
         changed_props = body.get("changedPropIds", [])
-        flask.g.triggered_inputs = [  # pylint: disable=assigning-non-slot
+        quart.g.triggered_inputs = [  # pylint: disable=assigning-non-slot
             {"prop_id": x, "value": input_values.get(x)} for x in changed_props
         ]
 
         response = (
-            flask.g.dash_response  # pylint: disable=assigning-non-slot
-        ) = flask.Response(mimetype="application/json")
+            quart.g.dash_response  # pylint: disable=assigning-non-slot
+        ) = quart.Response(None, mimetype="application/json")
 
         args = inputs_to_vals(inputs + state)
 
@@ -1311,8 +1333,8 @@ class Dash:
             args_grouping = map_grouping(
                 lambda ind: inputs_state[ind], inputs_state_indices
             )
-            flask.g.args_grouping = args_grouping  # pylint: disable=assigning-non-slot
-            flask.g.using_args_grouping = (  # pylint: disable=assigning-non-slot
+            quart.g.args_grouping = args_grouping  # pylint: disable=assigning-non-slot
+            quart.g.using_args_grouping = (  # pylint: disable=assigning-non-slot
                 not isinstance(inputs_state_indices, int)
                 and (
                     inputs_state_indices
@@ -1330,10 +1352,10 @@ class Dash:
             outputs_grouping = map_grouping(
                 lambda ind: flat_outputs[ind], outputs_indices
             )
-            flask.g.outputs_grouping = (  # pylint: disable=assigning-non-slot
+            quart.g.outputs_grouping = (  # pylint: disable=assigning-non-slot
                 outputs_grouping
             )
-            flask.g.using_outputs_grouping = (  # pylint: disable=assigning-non-slot
+            quart.g.using_outputs_grouping = (  # pylint: disable=assigning-non-slot
                 not isinstance(outputs_indices, int)
                 and outputs_indices != list(range(grouping_len(outputs_indices)))
             )
@@ -1341,7 +1363,11 @@ class Dash:
         except KeyError as missing_callback_function:
             msg = "Callback function not found for output '{}', perhaps you forgot to prepend the '@'?"
             raise KeyError(msg.format(output)) from missing_callback_function
-        response.set_data(func(*args, outputs_list=outputs_list))
+        if inspect.iscoroutinefunction(func):
+            output = await func(*args, outputs_list=outputs_list)
+        else:
+            output = run_sync(func)(*args, outputs_list=outputs_list)
+        response.set_data(output)
         return response
 
     def _setup_server(self):
@@ -1425,8 +1451,8 @@ class Dash:
         return err.args[0], 404
 
     @staticmethod
-    def _serve_default_favicon():
-        return flask.Response(
+    async def _serve_default_favicon():
+        return quart.Response(
             pkgutil.get_data("dash", "favicon.ico"), content_type="image/x-icon"
         )
 
@@ -1777,12 +1803,12 @@ class Dash:
         if debug and dev_tools.ui:
 
             def _before_request():
-                flask.g.timing_information = {  # pylint: disable=assigning-non-slot
+                quart.g.timing_information = {  # pylint: disable=assigning-non-slot
                     "__dash_server": {"dur": time.time(), "desc": None}
                 }
 
             def _after_request(response):
-                timing_information = flask.g.get("timing_information", None)
+                timing_information = quart.g.get("timing_information", None)
                 if timing_information is None:
                     return response
 
@@ -2044,4 +2070,6 @@ class Dash:
                 elif os.path.isfile(path):
                     extra_files.append(path)
 
-        self.server.run(host=host, port=port, debug=debug, **flask_run_options)
+        self.server.run(
+            host=host, port=port, debug=debug, loop=self.loop, **flask_run_options
+        )
