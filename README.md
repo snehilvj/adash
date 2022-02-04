@@ -1,56 +1,38 @@
-# Dash
+# ADash
 
-[![CircleCI](https://img.shields.io/circleci/project/github/plotly/dash/master.svg)](https://circleci.com/gh/plotly/dash)
-[![GitHub](https://img.shields.io/github/license/plotly/dash.svg?color=dark-green)](https://github.com/plotly/dash/blob/master/LICENSE)
-[![PyPI](https://img.shields.io/pypi/v/dash.svg?color=dark-green)](https://pypi.org/project/dash/)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/dash.svg?color=dark-green)](https://pypi.org/project/dash/)
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/y/plotly/dash.svg?color=dark-green)](https://github.com/plotly/dash/graphs/contributors)
-[![LGTM Alerts](https://img.shields.io/lgtm/alerts/g/plotly/dash.svg)](https://lgtm.com/projects/g/plotly/dash/alerts)
-[![LGTM Grade](https://img.shields.io/lgtm/grade/python/g/plotly/dash.svg)](https://lgtm.com/projects/g/plotly/dash/context:python)
+`adash` is an async port of [Plotly Dash](https://github.com/plotly/dash) library, created by replacing its flask backend
+with its async counterpart: [quart](https://pgjones.gitlab.io/quart/index.html).
 
-#### *Dash is the most downloaded, trusted Python framework for building ML & data science web apps*.
+It started with my need to be able to create realtime dashboards with `dash`, specifically with event-driven architecture.
+Using `adash` with components from [dash-extensions](https://github.com/thedirtyfew/dash-extensions) such as WebSocket, 
+EventSource, etc. you can create truly events based dashboards.
 
-Built on top of [Plotly.js](https://github.com/plotly/plotly.js), [React](https://reactjs.org/) and [Flask](https://palletsprojects.com/p/flask/), Dash ties modern UI elements like dropdowns, sliders, and graphs directly to your analytical Python code. Read [our tutorial](https://dash.plotly.com/getting-started) (proudly crafted ❤️ with Dash itself).
+## Motivation
 
-- [Docs](https://dash.plotly.com/getting-started): Create your first Dash app in under 5 minutes
+In addition to all the advantages of writing async code, `adash` enables you to:
+1. run truly asynchronous callbacks
+2. use websockets, server sent events, etc. without needing to monkey patch the Python standard library
+3. use `quart` / [`fastapi`](https://fastapi.tiangolo.com) / [`starlette`](https://www.starlette.io) frameworks with your dash apps side by side
+4. use HTTP/2 (especially server push) if you use it HTTP/2 enabled server such as [`hypercorn`](https://pgjones.gitlab.io/hypercorn/).
 
-- [dash.gallery](https://dash.gallery): Dash app gallery with Python & R code
+## Cons
 
-### Dash App Examples
+I'm maintaining this library as a proof of concept for now.
 
-| Dash App | Description |
-|--- | :---: |
-|![Sample Dash App](https://user-images.githubusercontent.com/1280389/30086128-9bb4a28e-9267-11e7-8fe4-bbac7d53f2b0.gif) | Here’s a simple example of a Dash App that ties a Dropdown to a Plotly Graph. As the user selects a value in the Dropdown, the application code dynamically exports data from Google Finance into a Pandas DataFrame. This app was written in just **43** lines of code ([view the source](https://gist.github.com/chriddyp/3d2454905d8f01886d651f207e2419f0)). |
-|![Crossfiltering Dash App](https://user-images.githubusercontent.com/1280389/30086123-97c58bde-9267-11e7-98a0-7f626de5199a.gif)|Dash app code is declarative and reactive, which makes it easy to build complex apps that contain many interactive elements. Here’s an example with 5 inputs, 3 outputs, and cross filtering. This app was composed in just 160 lines of code, all of which were Python.|
-|![Dash App with Mapbox map showing walmart store openings](https://user-images.githubusercontent.com/1280389/30086299-768509d0-9268-11e7-8e6b-626ac9ca512c.gif)| Dash uses [Plotly.js](https://github.com/plotly/plotly.js) for charting. About 50 chart types are supported, including maps. |
-|![Financial report](https://github.com/plotly/dash-docs/blob/516f80c417051406210b94ea23a6d3b6cd84d146/assets/images/gallery/dash-financial-report.gif)| Dash isn't just for dashboards. You have full control over the look and feel of your applications. Here's a Dash App that's styled to look like a PDF report. |
+## Should you use this?
 
-To learn more about Dash, read the [extensive announcement letter](https://medium.com/@plotlygraphs/introducing-dash-5ecf7191b503) or [jump in with the user guide](https://plotly.com/dash).
+For production, **NO**.
+If you do decide to use it for anything else, I'd love to hear your feedback.
 
-### Dash OSS & Dash Enterprise
+## Alternatives
 
-With Dash Open Source, Dash apps run on your local laptop or workstation, but cannot be easily accessed by others in your organization.
+### [dash-devices](https://github.com/richlegrand/dash_devices)
 
-Scale up with Dash Enterprise when your Dash app is ready for department or company-wide consumption. Or, launch your initiative with Dash Enterprise from the start to unlock developer productivity gains and hands-on acceleration from Plotly's team.
+`dash-devices` is another async port based on `quart`. Its capable os using websockets even for callbacks, which makes
+it way faster than either of `dash` or `adash`. However, the library stands outdated at the time this document was last updated.
 
-ML Ops Features: A one-stop shop for ML Ops: Horizontally scalable hosting, deployment, and authentication for your Dash apps. No IT or DevOps required.
-- [**App manager**](https://plotly.com/dash/app-manager/) Deploy & manage Dash apps without needing IT or a DevOps team. App Manager gives you point & click control over all aspects of your Dash deployments.
-- [**Kubernetes scaling**](https://plotly.com/dash/kubernetes/) Ensure high availability of Dash apps and scale horizontally with Dash Enterprise’s Kubernetes architecture. No IT or Helm required.
-- [**No code auth**](https://plotly.com/dash/authentication/) Control Dash app access in a few clicks. Dash Enterprise supports LDAP, AD, PKI, Okta, SAML, OpenID Connect, OAuth, SSO, and simple email authentication.
-- [**Job Queue**](https://plotly.com/dash/job-queue/) The Job Queue is the key to building scalable Dash apps. Move heavy computation from synchronous Dash callbacks to the Job Queue for asynchronous background processing.
+**PS:** `adash` is highly inspired by the `dash-devices`. Difference being that `adash` tries to follow `dash` as close as possible.
 
-Low-Code Features: Low-code Dash app capabilities that supercharge developer productivity.
-- [**Design Kit**](https://plotly.com/dash/design-kit/) Design like a pro without writing a line of CSS. Easily arrange, style, brand, and customize your Dash apps.
-- [**Snapshot Engine**](https://plotly.com/dash/snapshot-engine/) Save & share Dash app views as links or PDFs. Or, run a Python job through Dash and have Snapshot Engine email a report when the job is done.
-- [**Dashboard Toolkit**](https://plotly.com/dash/toolkit/) Drag & drop layouts, chart editing, and crossfilter for your Dash apps.
-- [**Embedding**](https://plotly.com/dash/embedding/) Natively embed Dash apps in an existing web application or website without the use of IFrames.
-
-Enterprise AI Features: Everything that your data science team needs to rapidly deliver AI/ML research and business initiatives.
-- [**AI App Marketplace**](https://plotly.com/dash/ai-and-ml-templates/) Dash Enterprise ships with dozens of Dash app templates for business problems where AI/ML is having the greatest impact.
-- [**Big Data for Pything**](https://plotly.com/dash/big-data-for-python/) Connect to Python's most popular big data back ends: Dask, Databricks, NVIDIA RAPIDS, Snowflake, Postgres, Vaex, and more.
-- [**GPU & Dask Acceleration**](https://plotly.com/dash/gpu-dask-acceleration/) Dash Enterprise puts Python’s most popular HPC stack for GPU and parallel CPU computing in the hands of business users.
-- [**Data Science Workspaces**](https://plotly.com/dash/workspaces/) Be productive from Day 1. Write and execute Python, R, & Julia code from Dash Enterprise's onboard code editor.
-
-See [https://plotly.com/contact-us/](https://plotly.com/contact-us/) to get in touch.
-
-![image](https://images.prismic.io/plotly-marketing-website/493eec39-8467-4610-b9d0-d6ad3ea61423_Dash+Open+source%2BDash+enterprise2-01.jpg?auto=compress,format)
+## TODO
+1. Write examples/articles showcasing the use cases for asynchronous `dash`.
+2. Gather reviews and feedback from the Dash Community.
