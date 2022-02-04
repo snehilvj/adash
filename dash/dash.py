@@ -68,7 +68,7 @@ from ._grouping import (
 )
 
 
-_flask_compress_version = parse_version(get_distribution("flask-compress").version)
+# _flask_compress_version = parse_version(get_distribution("flask-compress").version)
 
 # Add explicit mapping for map files
 mimetypes.add_type("application/json", ".map", True)

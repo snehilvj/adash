@@ -1,4 +1,4 @@
-quart>=1.0.4
+quart
 quart-compress
 plotly>=5.0.0
 dash_html_components==2.0.0
