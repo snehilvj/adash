@@ -5,7 +5,7 @@ backend with its async counterpart [quart](https://pgjones.gitlab.io/quart/index
 
 It started with my need to be able to create realtime dashboards with `dash`, specifically with event-driven
 architecture. Using `async-dash` with components from [dash-extensions](https://github.com/thedirtyfew/dash-extensions)
-such as WebSocket, EventSource, etc. you can create truly events based dashboards.
+such as WebSocket, EventSource, etc. you can create truly events based or realtime dashboards.
 
 #### Table Of Contents
 
@@ -26,7 +26,50 @@ pip install async-dash
 ### Usage
 
 ```python
-from dash import Dash, html, dcc, Output, Input
+from async_dash import Dash
+from dash import html, dcc
+```
+
+Simple Example
+
+```python
+import asyncio
+import random
+
+from async_dash import Dash
+from dash import html, Output, Input, dcc
+from dash_extensions import WebSocket
+from quart import websocket, json
+
+app = Dash(__name__)
+
+app.layout = html.Div([WebSocket(id="ws"), dcc.Graph(id="graph")])
+
+app.clientside_callback(
+    """
+function(msg) {
+    if (msg) {
+        const data = JSON.parse(msg.data);
+        return {data: [{y: data, type: "scatter"}]};
+    } else {
+        return {};
+    }
+}""",
+    Output("graph", "figure"),
+    [Input("ws", "message")],
+)
+
+
+@app.server.websocket("/ws")
+async def ws():
+    while True:
+        output = json.dumps([random.randint(200, 1000) for _ in range(6)])
+        await websocket.send(output)
+        await asyncio.sleep(1)
+
+
+if __name__ == "__main__":
+    app.run_server()
 ```
 
 ### Motivation
@@ -60,7 +103,7 @@ as close as possible.
 
 ### Known Issues
 
-1. Exception handling in callbacks in **debug mode** is broken.
+1. Exception handling in callbacks in **debug mode** is broken. So its disabled internally.
 
 ### TODO
 
