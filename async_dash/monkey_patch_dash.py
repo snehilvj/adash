@@ -173,3 +173,4 @@ def apply():
     flask.Blueprint = quart.Blueprint
     flask.jsonify = quart.jsonify
     flask.Response = quart.Response
+    flask.request = quart.request
