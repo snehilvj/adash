@@ -16,6 +16,7 @@ from dash._callback import (
     stringify_id,
     to_json,
 )
+from dash._utils import clean_property_name
 
 
 def register_callback(
@@ -99,7 +100,8 @@ def register_callback(
                     if not isinstance(vali, NoUpdate):
                         has_update = True
                         id_str = stringify_id(speci["id"])
-                        component_ids[id_str][speci["property"]] = vali
+                        prop = clean_property_name(speci["property"])
+                        component_ids[id_str][prop] = vali
 
             if not has_update:
                 raise PreventUpdate
