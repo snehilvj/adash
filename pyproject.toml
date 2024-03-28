@@ -35,8 +35,8 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = ">=3.7"
-dash = "^2.2.0"
-quart = "^0.19.4"
+dash = ">=2.9.0"
+quart = "^0.17.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.1.0"
