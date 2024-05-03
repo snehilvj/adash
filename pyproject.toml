@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "async-dash"
-version = "0.1.0a1"
+version = "0.2.0"
 description = "Async port of the official Plotly Dash library"
 authors = ["Snehil Vijay <snehilvj@outlook.com>"]
 license = "MIT"
@@ -35,8 +35,8 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = ">=3.7"
-dash = "^2.2.0"
-quart = "^0.16.3"
+dash = ">=2.9.0"
+quart = "^0.17.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.1.0"
